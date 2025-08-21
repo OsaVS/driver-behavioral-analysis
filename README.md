@@ -13,9 +13,3 @@ This project analyzes driver habits by collecting real-time data from a vehicle'
 - OBD-II Scanner
 - Embedded system for data acquisition
 - Cloud platform for data storage and processing
-
-### Timeline:
-#### Week 2 - 3:
-  - OBD-II port analysis
-  - System architecture
-  - Technologies and tools

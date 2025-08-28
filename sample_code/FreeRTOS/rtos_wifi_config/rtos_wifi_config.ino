@@ -115,7 +115,7 @@ void setup() {
   Serial.begin(115200);
 
   WiFiManager wifiManager;
-  // wifiManager.resetSettings(); // Uncomment to reset saved Wi-Fi credentials
+  wifiManager.resetSettings(); // Uncomment to reset saved Wi-Fi credentials
   wifiManager.setTimeout(180); // 3-minute timeout
 
   if (!wifiManager.autoConnect("ESP32_Config_AP")) {

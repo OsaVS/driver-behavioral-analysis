@@ -9,7 +9,7 @@ import { connectDB } from "./db.js"
 import jwt from 'jsonwebtoken'
 import Telemetry from "./models/telemetry.js"
 import User from './models/user.js'
-import Vehicle from './models/vehicle.js'
+import Device from './models/device.js'
 
 dotenv.config()
 
@@ -46,56 +46,138 @@ const authMiddleware = (req, res, next) => {
 }
 
 // Auth endpoints: register & login
-app.post('/api/auth/register', async (req, res) => {
-  const { email, password, name, vehicleName } = req.body
-  if (!email || !password) return res.status(400).json({ message: 'email and password required' })
-  try {
-    const user = new User({ email, password, name })
-    await user.save()
+// app.post('/api/auth/register', async (req, res) => {
+//   const { email, password, name, deviceName } = req.body
+//   if (!email || !password) return res.status(400).json({ message: 'email and password required' })
+//   try {
+//     const user = new User({ email, password, name })
+//     await user.save()
 
-    // Optionally create an initial vehicle
-    // Accept optional vehicleId and vehicleName via initialVehicle object for clients that provide an id
-    // Also keep backward compatible vehicleName param
-    const initialVehicle = req.body.initialVehicle || (vehicleName ? { name: vehicleName } : null)
-    if (initialVehicle) {
-      // allow client to pass initialVehicle.vehicleId; otherwise generate one
-      let { vehicleId: providedId, name: initialName } = initialVehicle
-      const vName = initialName || vehicleName || 'Unnamed'
+//     // Optionally create an initial device
+//     // Accept optional deviceId and deviceName via initialDevice object for clients that provide an id
+//     // Also keep backward compatible deviceName param
+//     const initialDeivce = req.body.initialDevice || (deviceName ? { name: deviceName } : null)
+//     if (initialDeivce) {
+//       // allow client to pass initialDevice.deviceId; otherwise generate one
+//       let { deviceId: providedId, name: initialName } = initialDeivce
+//       const vName = initialName || deviceName || 'Unnamed'
+//       if (providedId) {
+//         // validate provided id: allow letters, numbers, hyphen, underscore
+//         if (!/^[A-Za-z0-9_-]+$/.test(providedId)) {
+//           return res.status(400).json({ message: 'Invalid deviceId format. Allowed: letters, numbers, -, _' })
+//         }
+//         // conflict check
+//         const exists = await Device.findOne({ deviceId: providedId })
+//         if (exists) {
+//           return res.status(409).json({ message: 'deviceId already exists' })
+//         }
+//       } else {
+//         // Do NOT auto-generate a deviceId — require the client to provide one
+//         return res.status(400).json({ message: 'deviceId is required when creating an initial device' })
+//       }
+//       const deviceId = providedId
+//       const v = new Device({ deviceId, name: vName, owner: user._id })
+//       await v.save()
+//       user.selectedDevice = v.deviceId
+//       await user.save()
+//     }
+
+//     // build user object with devices list
+//     const devices = await Device.find({ owner: user._id }).lean()
+//     const userObj = {
+//       id: user._id.toString(),
+//       email: user.email,
+//       name: user.name,
+//       devices: devices.map((v) => ({ id: v.deviceId, name: v.name })),
+//       selectedDevice: user.selectedDevice ?? null,
+//     }
+//     const token = jwt.sign({ sub: user._id.toString() }, process.env.JWT_SECRET, { expiresIn: '12h' })
+//     return res.json({ token, user: userObj })
+//   } catch (err) {
+//     console.error(err)
+//     return res.status(400).json({ message: 'registration failed', error: err.message })
+//   }
+// })
+
+app.post('/api/auth/register', async (req, res) => {
+  const { email, password, deviceName } = req.body
+  console.log('Registration attempt:', { email,  deviceName }) // Debug log
+  
+  if (!email || !password) {
+    return res.status(400).json({ message: 'email and password required' })
+  }
+  
+  try {
+    const user = new User({ email, password })
+    await user.save()
+    console.log('User created successfully:', user._id) // Debug log
+
+    const initialDevice = deviceName ? { name: deviceName } : null
+    console.log('Initial device data:', initialDevice
+
+    ) // Debug log
+    
+    if (initialDevice) {
+      let providedId = initialDevice.name
+      console.log('Provided deviceId for initial device:', providedId) // Debug log
+      
       if (providedId) {
-        // validate provided id: allow letters, numbers, hyphen, underscore
         if (!/^[A-Za-z0-9_-]+$/.test(providedId)) {
-          return res.status(400).json({ message: 'Invalid vehicleId format. Allowed: letters, numbers, -, _' })
+          return res.status(400).json({ message: 'Invalid deviceId format. Allowed: letters, numbers, -, _' })
         }
-        // conflict check
-        const exists = await Vehicle.findOne({ vehicleId: providedId })
+        
+        const exists = await Device.findOne({ deviceId: providedId })
         if (exists) {
-          return res.status(409).json({ message: 'vehicleId already exists' })
+          return res.status(409).json({ message: 'deviceId already exists' })
         }
       } else {
-        // Do NOT auto-generate a vehicleId — require the client to provide one
-        return res.status(400).json({ message: 'vehicleId is required when creating an initial vehicle' })
+        return res.status(400).json({ message: 'deviceId is required when creating an initial device' })
       }
-      const vehicleId = providedId
-      const v = new Vehicle({ vehicleId, name: vName, owner: user._id })
-      await v.save()
-      user.selectedVehicle = v.vehicleId
+      
+      const deviceId = providedId
+      const device = new Device({ deviceId, owner: user._id })
+      await device.save()
+      
+      user.selectedDevice = device.deviceId
       await user.save()
     }
 
-    // build user object with vehicles list
-    const vehicles = await Vehicle.find({ owner: user._id }).lean()
+    const devices = await Device.find({ owner: user._id }).lean()
     const userObj = {
       id: user._id.toString(),
       email: user.email,
       name: user.name,
-      vehicles: vehicles.map((v) => ({ id: v.vehicleId, name: v.name })),
-      selectedVehicle: user.selectedVehicle ?? null,
+      devices: devices.map((v) => ({ id: v.deviceId })),
+      selectedDevice: user.selectedDevice ?? null,
     }
+    
     const token = jwt.sign({ sub: user._id.toString() }, process.env.JWT_SECRET, { expiresIn: '12h' })
     return res.json({ token, user: userObj })
+    
   } catch (err) {
-    console.error(err)
-    return res.status(400).json({ message: 'registration failed', error: err.message })
+    console.error('Registration error details:', err) // More detailed logging
+    console.error('Error name:', err.name)
+    console.error('Error code:', err.code)
+    
+    // Handle specific error types
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ 
+        message: 'Validation failed', 
+        error: err.message,
+        details: Object.values(err.errors).map(e => e.message)
+      })
+    }
+    
+    if (err.code === 11000) { // MongoDB duplicate key
+      return res.status(409).json({ 
+        message: 'Email already exists' 
+      })
+    }
+    
+    return res.status(400).json({ 
+      message: 'Registration failed', 
+      error: err.message 
+    })
   }
 })
 
@@ -109,9 +191,9 @@ app.post('/api/auth/login', async (req, res) => {
     if (!ok) return res.status(401).json({ message: 'Invalid credentials' })
     const token = jwt.sign({ sub: user._id.toString() }, process.env.JWT_SECRET, { expiresIn: '12h' })
 
-    // gather user's vehicles
-    const vehicles = await Vehicle.find({ owner: user._id }).lean()
-    const userObj = { id: user._id.toString(), email: user.email, name: user.name, vehicles: vehicles.map(v => ({ id: v.vehicleId, name: v.name })), selectedVehicle: user.selectedVehicle }
+    // gather user's devices
+    const devices = await Device.find({ owner: user._id }).lean()
+    const userObj = { id: user._id.toString(), email: user.email, name: user.name, devices: devices.map(v => ({ id: v.deviceId, name: v.name })), selectedDevice: user.selectedDevice }
     return res.json({ token, user: userObj })
   } catch (err) {
     console.error('/api/auth/login error:', err)
@@ -123,69 +205,69 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/me', authMiddleware, async (req, res) => {
   const u = await User.findById(req.user.id)
   if (!u) return res.status(404).json({ message: 'User not found' })
-  const vehicles = await Vehicle.find({ owner: u._id }).lean()
-  return res.json({ user: { id: u._id.toString(), email: u.email, name: u.name, vehicles: vehicles.map(v => ({ id: v.vehicleId, name: v.name })), selectedVehicle: u.selectedVehicle } })
+  const devices = await Device.find({ owner: u._id }).lean()
+  return res.json({ user: { id: u._id.toString(), email: u.email, name: u.name, devices: devices.map(v => ({ id: v.deviceId, name: v.name })), selectedDevice: u.selectedDevice } })
 })
 
-// Vehicles list/create and select
-app.get('/api/vehicles', authMiddleware, async (req, res) => {
-  const vehicles = await Vehicle.find({ owner: req.user.id }).lean()
+// devices list/create and select
+app.get('/api/devices', authMiddleware, async (req, res) => {
+  const devices = await Device.find({ owner: req.user.id }).lean()
   const user = await User.findById(req.user.id)
-  return res.json({ vehicles: vehicles.map(v => ({ id: v.vehicleId, name: v.name })), selectedVehicle: user?.selectedVehicle ?? null })
+  return res.json({ devices: devices.map(v => ({ id: v.deviceId, name: v.name })), selectedDevice: user?.selectedDevice ?? null })
 })
 
-// Debug: show authenticated user id and selected vehicle
+// Debug: show authenticated user id and selected device
 app.get('/api/debug/whoami', authMiddleware, async (req, res) => {
   const u = await User.findById(req.user.id).lean()
   if (!u) return res.status(404).json({ message: 'User not found' })
-  const vehicles = await Vehicle.find({ owner: req.user.id }).lean()
-  const selectedVehicle = u.selectedVehicle ?? null
-  console.log(`DEBUG /whoami: user=${req.user.id}, selectedVehicle=${selectedVehicle}`)
-  return res.json({ userId: req.user.id, selectedVehicle, vehicles: vehicles.map(v => ({ id: v.vehicleId, name: v.name })) })
+  const devices = await Device.find({ owner: req.user.id }).lean()
+  const selectedDevice = u.selectedDevice ?? null
+  console.log(`DEBUG /whoami: user=${req.user.id}, selectedDevice=${selectedDevice}`)
+  return res.json({ userId: req.user.id, selectedDevice, devices: devices.map(v => ({ id: v.DeviceId, name: v.name })) })
 })
 
-app.post('/api/vehicles', authMiddleware, async (req, res) => {
-  const { vehicleId } = req.body
+app.post('/api/devices', authMiddleware, async (req, res) => {
+  const { deviceId } = req.body
 
-  if (vehicleId) {
+  if (deviceId) {
     // validate provided id: must be like ABC-1234
-    if (!/^[A-Z]{3}-\d{4}$/.test(vehicleId)) {
-      return res.status(400).json({
-        message: 'Invalid vehicleId format. Format must be: 3 capital letters, a hyphen, and 4 numbers (e.g., ABC-1234)',
-      })
-    }
+    // if (!/^[A-Z]{3}-\d{4}$/.test(deviceId)) {
+    //   return res.status(400).json({
+    //     message: 'Invalid deviceId format. Format must be: 3 capital letters, a hyphen, and 4 numbers (e.g., ABC-1234)',
+    //   })
+    // }
 
     // check conflict
-    const exists = await Vehicle.findOne({ vehicleId })
+    const exists = await Device.findOne({ deviceId })
     if (exists) {
       // If exists and owned by this user, return it; otherwise conflict
       if (String(exists.owner) === String(req.user.id)) {
         // set as selected and return existing
-        await User.findByIdAndUpdate(req.user.id, { selectedVehicle: vehicleId })
-        return res.json({ vehicle: { id: exists.vehicleId } })
+        await User.findByIdAndUpdate(req.user.id, { selectedDevice: deviceId })
+        return res.json({ device: { id: exists.deviceId } })
       }
-      return res.status(409).json({ message: 'vehicleId already exists' })
+      return res.status(409).json({ message: 'deviceId already exists' })
     }
   } else {
-    // Do NOT auto-generate vehicle IDs; require the client to provide one
-    return res.status(400).json({ message: 'vehicleId is required' })
+    // Do NOT auto-generate device IDs; require the client to provide one
+    return res.status(400).json({ message: 'deviceId is required' })
   }
 
-  const v = new Vehicle({ vehicleId, owner: req.user.id })
+  const v = new Device({ deviceId, owner: req.user.id })
   await v.save()
   // set as selected
-  await User.findByIdAndUpdate(req.user.id, { selectedVehicle: v.vehicleId })
-  return res.json({ vehicle: { id: v.vehicleId} })
+  await User.findByIdAndUpdate(req.user.id, { selectedDevice: v.deviceId })
+  return res.json({ device: { id: v.deviceId} })
 })
 
-app.post('/api/select-vehicle', authMiddleware, async (req, res) => {
-  const { vehicleId } = req.body
-  if (!vehicleId) return res.status(400).json({ message: 'vehicleId required' })
-  const vehicle = await Vehicle.findOne({ vehicleId })
-  if (!vehicle) return res.status(404).json({ message: 'vehicle not found' })
-  if (String(vehicle.owner) !== String(req.user.id)) return res.status(403).json({ message: 'Not owner of vehicle' })
-  await User.findByIdAndUpdate(req.user.id, { selectedVehicle: vehicleId })
-  return res.json({ selectedVehicle: vehicleId })
+app.post('/api/select-device', authMiddleware, async (req, res) => {
+  const { deviceId } = req.body
+  if (!deviceId) return res.status(400).json({ message: 'deviceId required' })
+  const device = await Device.findOne({ deviceId })
+  if (!device) return res.status(404).json({ message: 'device not found' })
+  if (String(device.owner) !== String(req.user.id)) return res.status(403).json({ message: 'Not owner of device' })
+  await User.findByIdAndUpdate(req.user.id, { selectedDevice: deviceId })
+  return res.json({ selectedDevice: deviceId })
 })
 
 // Socket.IO JWT auth: expect token in handshake.auth.token
@@ -201,51 +283,51 @@ io.use((socket, next) => {
   }
 })
 
-// Socket.IO connections: enforce that sockets only subscribe to vehicles they own
+// Socket.IO connections: enforce that sockets only subscribe to devices they own
 io.on('connection', (socket) => {
   console.log(`🔌 Socket connected: ${socket.id}, userId=${socket.data.userId}`)
-  // auto-join user's selected vehicle room (if any)
+  // auto-join user's selected device room (if any)
   ;(async () => {
     try {
       const u = await User.findById(socket.data.userId)
-      if (u && u.selectedVehicle) {
-        const vehicle = await Vehicle.findOne({ vehicleId: u.selectedVehicle })
-        if (vehicle && String(vehicle.owner) === String(socket.data.userId)) {
-          socket.join(u.selectedVehicle)
-          console.log(`➡️ Socket ${socket.id} auto-joined selected vehicle room ${u.selectedVehicle}`)
-          socket.emit('subscribed', { vehicleId: u.selectedVehicle })
+      if (u && u.selectedDevice) {
+        const device = await Device.findOne({ deviceId: u.selectedDevice })
+        if (device && String(device.owner) === String(socket.data.userId)) {
+          socket.join(u.selectedDevice)
+          console.log(`➡️ Socket ${socket.id} auto-joined selected device room ${u.selectedDevice}`)
+          socket.emit('subscribed', { deviceId: u.selectedDevice })
         }
       }
     } catch (err) {
-      console.error('Error auto-joining selected vehicle for socket', err)
+      console.error('Error auto-joining selected device for socket', err)
     }
   })()
-  socket.on('subscribe', async (vehicleId) => {
-    if (!vehicleId) return
+  socket.on('subscribe', async (deviceId) => {
+    if (!deviceId) return
     // check ownership
-    const vehicle = await Vehicle.findOne({ vehicleId })
-    if (!vehicle) return socket.emit('error', { message: 'vehicle not found' })
-    if (String(vehicle.owner) !== String(socket.data.userId)) {
-      console.warn(`⛔ Unauthorized subscribe by ${socket.data.userId} to vehicle ${vehicleId}`)
-      return socket.emit('error', { message: 'Unauthorized to subscribe to this vehicleId' })
+    const device = await Device.findOne({ deviceId })
+    if (!device) return socket.emit('error', { message: 'device not found' })
+    if (String(device.owner) !== String(socket.data.userId)) {
+      console.warn(`⛔ Unauthorized subscribe by ${socket.data.userId} to device ${deviceId}`)
+      return socket.emit('error', { message: 'Unauthorized to subscribe to this deviceId' })
     }
-    socket.join(vehicleId)
-    console.log(`➡️ Socket ${socket.id} joined room ${vehicleId}`)
-    socket.emit('subscribed', { vehicleId })
+    socket.join(deviceId)
+    console.log(`➡️ Socket ${socket.id} joined room ${deviceId}`)
+    socket.emit('subscribed', { deviceId })
   })
-  socket.on('unsubscribe', (vehicleId) => {
-    if (!vehicleId) return
-    socket.leave(vehicleId)
-    socket.emit('unsubscribed', { vehicleId })
+  socket.on('unsubscribe', (deviceId) => {
+    if (!deviceId) return
+    socket.leave(deviceId)
+    socket.emit('unsubscribed', { deviceId })
   })
 
   // debug: client can ask who they are
   socket.on('whoami', async (cb) => {
     try {
       const u = await User.findById(socket.data.userId).lean()
-      const selectedVehicle = u?.selectedVehicle ?? null
-      console.log(`DEBUG socket.whoami: socket=${socket.id}, user=${socket.data.userId}, selectedVehicle=${selectedVehicle}`)
-      if (typeof cb === 'function') cb({ userId: socket.data.userId, selectedVehicle })
+      const selectedDevice = u?.selectedDevice ?? null
+      console.log(`DEBUG socket.whoami: socket=${socket.id}, user=${socket.data.userId}, selectedDevice=${selectedDevice}`)
+      if (typeof cb === 'function') cb({ userId: socket.data.userId, selectedDevice })
     } catch (err) {
       console.error('Error in whoami handler', err)
       if (typeof cb === 'function') cb({ error: 'server error' })
@@ -265,7 +347,7 @@ const mqttClient = mqtt.connect(process.env.MQTT_BROKER)
 
 mqttClient.on("connect", () => {
   console.log("📡 Connected to MQTT Broker")
-  const topicToSubscribe = process.env.MQTT_TOPIC || 'vehicles/+/telemetry'
+  const topicToSubscribe = process.env.MQTT_TOPIC || 'devices/+/telemetry'
   mqttClient.subscribe(topicToSubscribe, (err) => {
     if (!err) console.log("✅ Subscribed to", topicToSubscribe)
     else console.error('❌ MQTT subscribe error', err)
@@ -299,27 +381,27 @@ mqttClient.on("message", async (topic, message) => {
     // Log raw MQTT message to terminal for debugging
     console.log(`📥 MQTT message received on '${topic}': ${message.toString()}`)
 
-    // Extract vehicleId from topic (expected: vehicles/{vehicleId}/telemetry)
-    const topicMatch = String(topic).match(/^vehicles\/([^/]+)\/telemetry$/)
+    // Extract deviceId from topic (expected: devices/{deviceId}/telemetry)
+    const topicMatch = String(topic).match(/^devices\/([^/]+)\/telemetry$/)
     if (!topicMatch) {
       console.warn(`⚠️ Received message on unexpected topic format: ${topic}`)
       return
     }
-    const vehicleIdFromTopic = topicMatch[1]
+    const deviceIdFromTopic = topicMatch[1]
 
     const data = JSON.parse(message.toString())
-    // Prefer vehicleId from topic as authoritative source
+    // Prefer deviceId from topic as authoritative source
     const { speed, behavior_status, engine_rpm, timestamp } = data
-    const vehicleId = vehicleIdFromTopic
+    const deviceId = deviceIdFromTopic
 
-    // Resolve vehicle and owner before saving so telemetry is associated with a user
-    const vehicle = await Vehicle.findOne({ vehicleId })
-    if (!vehicle) {
-      console.warn(`⚠️ Received telemetry for unknown vehicleId='${vehicleId}' — skipping save`)
+    // Resolve device and owner before saving so telemetry is associated with a user
+    const device = await Device.findOne({ deviceId })
+    if (!device) {
+      console.warn(`⚠️ Received telemetry for unknown deviceId='${deviceId}' — skipping save`)
     } else {
       const record = new Telemetry({
-        vehicleId,
-        userId: vehicle.owner,
+        deviceId,
+        userId: device.owner,
         speed,
         behavior_status,
         engine_rpm,
@@ -327,15 +409,15 @@ mqttClient.on("message", async (topic, message) => {
       })
 
       record.save()
-        .then((doc) => console.log(`💾 Telemetry saved for vehicle ${vehicleId}, _id=${doc._id}, user=${vehicle.owner}`))
+        .then((doc) => console.log(`💾 Telemetry saved for device ${deviceId}, _id=${doc._id}, user=${device.owner}`))
         .catch((saveErr) => console.error("❌ Error saving telemetry:", saveErr))
     }
 
-    // Emit live data to frontend via WebSocket to the vehicle-specific room
-    if (vehicleId) {
-      io.to(String(vehicleId)).emit("telemetry", data)
+    // Emit live data to frontend via WebSocket to the device-specific room
+    if (deviceId) {
+      io.to(String(deviceId)).emit("telemetry", data)
     } else {
-      // fallback: broadcast if no vehicleId present
+      // fallback: broadcast if no deviceId present
       io.emit("telemetry", data)
     }
   } catch (err) {
@@ -345,17 +427,17 @@ mqttClient.on("message", async (topic, message) => {
 
 // --- REST Endpoints ---
 
-// Latest data for a specific vehicle
-app.get("/api/telemetry/:vehicleId/latest", async (req, res) => {
-  const data = await Telemetry.findOne({ vehicleId: req.params.vehicleId })
+// Latest data for a specific device
+app.get("/api/telemetry/:deviceId/latest", async (req, res) => {
+  const data = await Telemetry.findOne({ deviceId: req.params.deviceId })
     .sort({ timestamp: -1 })
     .lean()
   res.json(data || {})
 })
 
 // Recent historical data
-app.get("/api/telemetry/:vehicleId/history", async (req, res) => {
-  const data = await Telemetry.find({ vehicleId: req.params.vehicleId })
+app.get("/api/telemetry/:deviceId/history", async (req, res) => {
+  const data = await Telemetry.find({ deviceId: req.params.deviceId })
     .sort({ timestamp: -1 })
     .limit(200)
     .lean()
@@ -363,13 +445,13 @@ app.get("/api/telemetry/:vehicleId/history", async (req, res) => {
 })
 
 // Aggregated journey summary (avg speed, good%, etc.)
-app.get("/api/telemetry/:vehicleId/summary", async (req, res) => {
-  const vehicleId = req.params.vehicleId
+app.get("/api/telemetry/:deviceId/summary", async (req, res) => {
+  const deviceId = req.params.deviceId
   const recent = await Telemetry.aggregate([
-    { $match: { vehicleId } },
+    { $match: { deviceId } },
     {
       $group: {
-        _id: "$vehicleId",
+        _id: "$deviceId",
         avgSpeed: { $avg: "$speed" },
         maxSpeed: { $max: "$speed" },
         goodCount: {
@@ -382,7 +464,7 @@ app.get("/api/telemetry/:vehicleId/summary", async (req, res) => {
   const result =
     recent.length > 0
       ? {
-          vehicleId,
+          deviceId,
           avgSpeed: recent[0].avgSpeed.toFixed(2),
           maxSpeed: recent[0].maxSpeed,
           behaviorScore: Math.round(

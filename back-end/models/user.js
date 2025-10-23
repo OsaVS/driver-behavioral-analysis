@@ -5,8 +5,8 @@ const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true },
   name: { type: String },
-  // vehicleId string of currently selected vehicle for this user (optional)
-  selectedVehicle: { type: String, default: null },
+  // deviceId string of currently selected device for this user (optional)
+  selectedDevice: { type: String, default: null },
   createdAt: { type: Date, default: Date.now },
 })
 

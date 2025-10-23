@@ -20,7 +20,7 @@ import {
 } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { Activity, Gauge, TrendingUp, AlertTriangle, CheckCircle2, Clock } from "lucide-react"
-import { getCurrentUser, subscribeAuth, subscribeSelectedVehicle, type AuthUser, getSelectedVehicle, getToken, fetchMe, logout, selectVehicle, listVehicles } from "@/lib/auth"
+import { getCurrentUser, subscribeAuth, subscribeSelectedDevice, type AuthUser, getSelectedDevice, getToken, fetchMe, logout, selectDevice, listDevices } from "@/lib/auth"
 import Link from "next/link"
 
 // Simulated real-time data for the current journey
@@ -37,8 +37,7 @@ const generateJourneyData = () => {
   return data
 }
 
-// Historical journey data
-const historicalJourneys = [
+const historicalJourneys: Array<{ id: number; date: string; score: number; duration: string; distance: string }> = [
   { id: 1, date: "2025-10-15", score: 92, duration: "45 min", distance: "32 km" },
   { id: 2, date: "2025-10-14", score: 78, duration: "38 min", distance: "28 km" },
   { id: 3, date: "2025-10-13", score: 88, duration: "52 min", distance: "41 km" },
@@ -51,17 +50,17 @@ const historicalJourneys = [
 export default function DriverDashboard() {
   const router = useRouter()
   const socketRef = useRef<Socket | null>(null)
-  // vehicle id from query param 'vehicleId' if present
-  let vehicleIdDefault = "Vehicle-1234"
+  // device id from query param 'device' if present
+  let deviceIdDefault = "Vehicle-1234"
   try {
     const sp = typeof window !== "undefined" ? useSearchParams() : null
-    const fromQuery = sp?.get("vehicleId")
-    if (fromQuery) vehicleIdDefault = fromQuery
+    const fromQuery = sp?.get("deviceId")
+    if (fromQuery) deviceIdDefault = fromQuery
   } catch (e) {
     // use fallback if hook not available during SSR or other envs
   }
 
-  const [vehicleId, setVehicleId] = useState<string>(vehicleIdDefault)
+  const [deviceId, setDeviceId] = useState<string>(deviceIdDefault)
 
   // live timestamp for header
   const [now, setNow] = useState<Date>(() => new Date())
@@ -90,7 +89,7 @@ export default function DriverDashboard() {
   // ...existing code...
 useEffect(() => {
   // Only connect when a user is authenticated
-  if (!user || !vehicleId) {
+  if (!user || !deviceId) {
     // ensure any existing socket is disconnected
     if (socketRef.current) {
       socketRef.current.disconnect()
@@ -125,21 +124,38 @@ useEffect(() => {
     setLastTelemetry(data)
     setTelemetryLog((prev) => [data, ...prev].slice(0, 100))
 
-    if (data.vehicleId === vehicleId) {
-      setCurrentSpeed(data.speed)
-      setCurrentBehavior(data.behavior_status)
-      setRpm(data.engine_rpm)
+    // Process telemetry messages as emitted by the backend (room-delivered).
+    const speedVal = typeof data.speed === 'number' ? data.speed : Number(data.speed) || 0
+    const behaviorVal: "good" | "bad" = data.behavior_status ?? data.behavior ?? null
+    const rpmVal = data.engine_rpm ?? data.rpm ?? null
+    const timeSec = data.timestamp ? Math.floor(new Date(data.timestamp).getTime() / 1000) : Math.floor(Date.now() / 1000)
 
-      setJourneyData((prev) => [
+    setCurrentSpeed(speedVal)
+    setCurrentBehavior(behaviorVal)
+    setRpm(rpmVal)
+
+    // Append new point and also compute avg/max speed from the kept window
+    setJourneyData((prev) => {
+      const next = [
         ...prev.slice(-59),
         {
-          // store numeric seconds since epoch to keep the time type consistent with generateJourneyData()
-          time: Math.floor(new Date(data.timestamp).getTime() / 1000),
-          speed: data.speed,
-          behavior: data.behavior_status === "good" ? 1 : 0,
+          time: timeSec,
+          speed: speedVal,
+          behavior: behaviorVal === "good" ? 1 : 0,
         },
-      ])
-    }
+      ]
+
+      const speeds = next.map((d) => (typeof d.speed === 'number' ? d.speed : Number(d.speed) || 0))
+      const validSpeeds = speeds.filter((s) => !Number.isNaN(s))
+      const avg = validSpeeds.length ? Math.round(validSpeeds.reduce((a, b) => a + b, 0) / validSpeeds.length) : null
+      const mx = validSpeeds.length ? Math.round(Math.max(...validSpeeds)) : null
+
+      // update aggregate stats
+      setAvgSpeed(avg)
+      setMaxSpeed(mx)
+
+      return next
+    })
   }
 
   socketRef.current.on("telemetry", (data) => {
@@ -157,25 +173,25 @@ useEffect(() => {
     }
     setIsConnected(false)
   }
-}, [user, vehicleId])
+}, [user, deviceId])
 // ...existing code...
 
   // No local simulator: current values will come from socket telemetry only.
   // Simulator removed to avoid showing random values as current state.
 
-  // Subscribe to auth changes and selected vehicle from auth
+  // Subscribe to auth changes and selected device from auth
   useEffect(() => {
     setMounted(true)
     const unsubAuth = subscribeAuth((u) => setUser(u))
-    // if there is already a selected vehicle in auth store, use it
+    // if there is already a selected device in auth store, use it
     try {
-      const sv = getSelectedVehicle()
-      if (sv) setVehicleId(sv.id)
+      const sv = getSelectedDevice()
+      if (sv) setDeviceId(sv.id)
     } catch (e) {}
 
-    const unsubVeh = subscribeSelectedVehicle((vId) => {
-      console.log('driver-dashboard: selected vehicle changed ->', vId)
-      if (vId) setVehicleId(vId)
+    const unsubVeh = subscribeSelectedDevice((vId) => {
+      console.log('driver-dashboard: selected device changed ->', vId)
+      if (vId) setDeviceId(vId)
     })
 
     return () => {
@@ -209,31 +225,31 @@ useEffect(() => {
           <div className="flex items-baseline gap-3">
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-balance">Driver Behavior Monitor</h1>
             <div className="text-sm text-muted-foreground flex items-center gap-3">
-              {user && user.vehicles && user.vehicles.length > 0 ? (
+              {user && user.devices && user.devices.length > 0 ? (
                 <div className="flex items-center gap-2">
-                  <label className="text-xs text-muted-foreground">Vehicle</label>
+                  <label className="text-xs text-muted-foreground">Device</label>
                   <select
-                    value={vehicleId}
+                    value={deviceId}
                     onChange={async (e) => {
                       const id = e.target.value
                       try {
-                        await selectVehicle(id)
-                        setVehicleId(id)
-                        // refresh the user's vehicle list if needed
-                        await listVehicles().catch(() => {})
+                        await selectDevice(id)
+                        setDeviceId(id)
+                        // refresh the user's device list if needed
+                        await listDevices().catch(() => {})
                       } catch (err) {
-                        console.error('selectVehicle failed', err)
+                        console.error('selectDevice failed', err)
                       }
                     }}
                     className="px-2 py-1 border rounded bg-background text-sm"
                   >
-                    {user.vehicles.map((v) => (
+                    {user.devices.map((v) => (
                       <option key={v.id} value={v.id}>{v.name ?? v.id}</option>
                     ))}
                   </select>
                 </div>
               ) : (
-                <Link href="/choose-vehicle" className="underline text-primary">Choose a vehicle</Link>
+                <Link href="/choose-device" className="underline text-primary">Choose a device</Link>
               )}
               <button
                 className="px-3 py-1 border rounded text-sm"
@@ -331,8 +347,8 @@ useEffect(() => {
             <div className="space-y-1 max-h-40 overflow-auto">
               {telemetryLog.map((t, i) => (
                 <div key={i} className="text-xs text-muted-foreground border-b pb-1">
-                  <div><strong>{t.vehicleId ?? 'unknown'}</strong> — {t.timestamp}</div>
-                  <div>speed: {t.speed ?? '-'}, rpm: {t.rpm ?? '-'}</div>
+                  <div><strong>{t.deviceId ?? 'unknown'}</strong> — {t.timestamp}</div>
+                  <div>speed: {t.speed ?? '-'}, rpm: {t.engine_rpm ?? t.rpm ?? '-'}</div>
                 </div>
               ))}
               {telemetryLog.length === 0 && <div className="text-xs text-muted-foreground">No telemetry received</div>}
@@ -444,7 +460,7 @@ useEffect(() => {
       </div>
 
       {/* Historical Journeys */}
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle>Journey History</CardTitle>
           <CardDescription>Performance overview of your past journeys</CardDescription>
@@ -496,10 +512,10 @@ useEffect(() => {
                 <Bar dataKey="score" fill="var(--color-chart-1)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          </ChartContainer>
+          </ChartContainer> */}
 
           {/* Historical Journey Details */}
-          <div className="mt-6 space-y-3">
+          {/* <div className="mt-6 space-y-3">
             {historicalJourneys.map((journey) => (
               <div key={journey.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-4">
@@ -522,7 +538,7 @@ useEffect(() => {
             ))}
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
   )
 }

@@ -7,7 +7,7 @@ import { signup } from "@/lib/auth"
 export default function SignupPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [vehicleName, setVehicleName] = useState("")
+  const [deviceName, setDeviceName] = useState("")
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
@@ -15,8 +15,8 @@ export default function SignupPage() {
     e.preventDefault()
     setError(null)
     try {
-      await signup(email, password, undefined, { name: vehicleName })
-      router.push('/choose-vehicle')
+      await signup(email, password, { name: deviceName })
+      router.push('/choose-device')
     } catch (err: any) {
       setError(err?.message ?? 'Signup failed')
     }
@@ -36,8 +36,8 @@ export default function SignupPage() {
           <input type="password" className="w-full px-3 py-2 border rounded" value={password} onChange={(e) => setPassword(e.target.value)} />
         </label>
         <label className="block mb-4">
-          <div className="text-sm mb-1">Vehicle name (optional)</div>
-          <input className="w-full px-3 py-2 border rounded" value={vehicleName} onChange={(e) => setVehicleName(e.target.value)} />
+          <div className="text-sm mb-1">Device name (optional)</div>
+          <input className="w-full px-3 py-2 border rounded" value={deviceName} onChange={(e) => setDeviceName(e.target.value)} />
         </label>
         <div className="flex gap-3">
           <button className="px-4 py-2 bg-primary text-white rounded" type="submit">Create account</button>

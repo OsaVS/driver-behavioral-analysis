@@ -1,0 +1,9 @@
+# envs
+/back-end/.env
+/front-end/.env.local
+
+# build / deps
+/front-end/.next/
+/front-end/node_modules/
+/front-end/app/node_modules/
+/back-end/node_modules/

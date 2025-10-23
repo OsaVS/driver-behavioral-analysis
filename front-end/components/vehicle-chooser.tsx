@@ -1,15 +1,15 @@
 "use client"
 
 import React from "react"
-import { type Vehicle } from "@/lib/auth"
+import { type Device } from "@/lib/auth"
 
-export default function VehicleChooser({
-  vehicles,
+export default function DeviceChooser({
+  devices,
   onSelect,
   onAdd,
   onDelete,
 }: {
-  vehicles: Vehicle[]
+  devices: Device[]
   onSelect: (id: string) => void
   onAdd?: (name: string) => void
   onDelete?: (id: string) => void
@@ -19,7 +19,7 @@ export default function VehicleChooser({
   return (
     <div>
       <div className="space-y-3 mb-4">
-        {vehicles.map((v) => (
+        {devices.map((v) => (
           <div key={v.id} className="p-3 rounded bg-muted/50 flex items-center justify-between">
             <div>
               <div className="font-medium">{v.name ?? v.id}</div>

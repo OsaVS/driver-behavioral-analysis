@@ -15,7 +15,7 @@ export default function LoginPage() {
     setError(null)
     try {
       await login(email, password)
-      router.push('/choose-vehicle')
+      router.push('/choose-device')
     } catch (err: any) {
       setError(err?.message ?? 'Login failed')
     }
